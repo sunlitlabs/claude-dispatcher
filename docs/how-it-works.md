@@ -10,7 +10,7 @@ The problem: after a reboot, Windows has no record of which `claude` sessions we
 | `heartbeat.ps1` | every minute (scheduled task) | proves which sessions are still alive |
 | `resume.ps1` | at logon (scheduled task) | reopens sessions that were alive at shutdown |
 | `dispatch.ps1` | on demand / first tab | menu to resume or start sessions |
-| `launch.ps1` | dot-sourced | builds the Windows Terminal command line |
+| `launch.ps1` | dot-sourced | builds the Windows Terminal command line and the `claude` arguments (Remote Control) |
 | `common.ps1` | dot-sourced | registry read/write helpers |
 
 Everything is installed to `%USERPROFILE%\.claude\session-registry\`.

@@ -16,9 +16,21 @@ function Open-ClaudeTabs($Specs, [switch]$WithDispatcher) {
     Start-Process wt.exe -ArgumentList ('-w claude ' + ($parts -join ' ; '))
 }
 
+# Extra arguments added to every claude command we launch. Default: Remote Control, named after the folder.
+# Override with {"claudeArgs": "..."} in config.json next to these scripts ("{name}" = folder name; "" = none).
+function Get-ClaudeArgs([string]$Cwd) {
+    $extra = '--remote-control "{name}"'
+    $cfg = Join-Path $script:Root 'config.json'
+    if (Test-Path -LiteralPath $cfg) {
+        try { $c = Get-Content -LiteralPath $cfg -Raw | ConvertFrom-Json; if ($null -ne $c.claudeArgs) { $extra = [string]$c.claudeArgs } } catch {}
+    }
+    $name = (Split-Path $Cwd -Leaf) -replace '["`$]', ''
+    ($extra -replace '\{name\}', $name).Trim()
+}
+
 function New-ResumeSpec([string]$SessionId, [string]$Cwd) {
-    [pscustomobject]@{ Title = (Split-Path $Cwd -Leaf); Cwd = $Cwd; Command = "claude --resume $SessionId" }
+    [pscustomobject]@{ Title = (Split-Path $Cwd -Leaf); Cwd = $Cwd; Command = ("claude --resume $SessionId " + (Get-ClaudeArgs $Cwd)).Trim() }
 }
 function New-FreshSpec([string]$Cwd) {
-    [pscustomobject]@{ Title = (Split-Path $Cwd -Leaf); Cwd = $Cwd; Command = 'claude' }
+    [pscustomobject]@{ Title = (Split-Path $Cwd -Leaf); Cwd = $Cwd; Command = ('claude ' + (Get-ClaudeArgs $Cwd)).Trim() }
 }

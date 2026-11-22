@@ -66,6 +66,20 @@ Claude dispatcher
 
 Sessions marked `*` are running now. Resuming one asks for confirmation first.
 
+## Remote Control
+
+Every session this tool launches, whether resumed after a reboot or started or resumed from the dispatcher, runs with [Remote Control](https://code.claude.com/docs/en/remote-control) enabled, so you can reach it from claude.ai/code or the Claude mobile app. Each session is named after its folder, which makes it easy to spot in the session list.
+
+Resumed sessions run `claude --resume <id> --remote-control "<folder>"`, and new ones run `claude --remote-control "<folder>"`.
+
+To change this, create `%USERPROFILE%\.claude\session-registry\config.json`:
+
+```json
+{ "claudeArgs": "--remote-control" }
+```
+
+`claudeArgs` replaces the default arguments added to every `claude` command. `{name}` is replaced by the folder name, and an empty string (`""`) turns Remote Control off. The file survives upgrades, because `install.ps1` never touches it. Sessions you start by hand with a plain `claude` are not affected.
+
 ## Uninstall
 
 ```powershell
