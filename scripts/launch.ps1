@@ -18,19 +18,23 @@ function Open-ClaudeTabs($Specs, [switch]$WithDispatcher) {
 
 # Extra arguments added to every claude command we launch. Default: Remote Control, named after the folder.
 # Override with {"claudeArgs": "..."} in config.json next to these scripts ("{name}" = folder name; "" = none).
-function Get-ClaudeArgs([string]$Cwd) {
+function Get-ClaudeArgs([string]$Name) {
     $extra = '--remote-control "{name}"'
     $cfg = Join-Path $script:Root 'config.json'
     if (Test-Path -LiteralPath $cfg) {
         try { $c = Get-Content -LiteralPath $cfg -Raw | ConvertFrom-Json; if ($null -ne $c.claudeArgs) { $extra = [string]$c.claudeArgs } } catch {}
     }
-    $name = (Split-Path $Cwd -Leaf) -replace '["`$]', ''
-    ($extra -replace '\{name\}', $name).Trim()
+    $safe = ($Name -replace '["`$%;\r\n]', '').Trim()   # ';' would split the Windows Terminal command line
+    if ($safe.Length -gt 60) { $safe = $safe.Substring(0, 60).Trim() }
+    ($extra -replace '\{name\}', $safe).Trim()
 }
 
-function New-ResumeSpec([string]$SessionId, [string]$Cwd) {
-    [pscustomobject]@{ Title = (Split-Path $Cwd -Leaf); Cwd = $Cwd; Command = ("claude --resume $SessionId " + (Get-ClaudeArgs $Cwd)).Trim() }
+# $Title (the conversation's name) is used for the Remote Control name and tab title when known, else the folder name.
+function New-ResumeSpec([string]$SessionId, [string]$Cwd, [string]$Title) {
+    $label = if ($Title) { $Title } else { Split-Path $Cwd -Leaf }
+    $label = $label -replace ';', ','
+    [pscustomobject]@{ Title = $label; Cwd = $Cwd; Command = ("claude --resume $SessionId " + (Get-ClaudeArgs $label)).Trim() }
 }
 function New-FreshSpec([string]$Cwd) {
-    [pscustomobject]@{ Title = (Split-Path $Cwd -Leaf); Cwd = $Cwd; Command = ('claude ' + (Get-ClaudeArgs $Cwd)).Trim() }
+    [pscustomobject]@{ Title = (Split-Path $Cwd -Leaf); Cwd = $Cwd; Command = ('claude ' + (Get-ClaudeArgs (Split-Path $Cwd -Leaf))).Trim() }
 }

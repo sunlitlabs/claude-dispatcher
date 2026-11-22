@@ -68,7 +68,17 @@ A session whose window you closed stops getting refreshed immediately, so its `l
 
 ## The dispatcher
 
-`dispatch.ps1` scans `%USERPROFILE%\.claude\projects\*\*.jsonl`, takes the most recent transcripts, and reads each one's first lines for the working directory and first real prompt. Running sessions come from the registry. Choosing an entry opens a tab (or runs inline with `h`) with `claude --resume <id>` in that session's folder, so the transcript is found.
+`dispatch.ps1` scans `%USERPROFILE%\.claude\projects\*\*.jsonl`, takes the most recent transcripts, and reads each one's first lines for the working directory and first real prompt, and its tail for the conversation title (`custom-title` from `/rename`, else `ai-title`). Transcripts whose entrypoint is `sdk-cli` (sub-sessions spawned by tools) are hidden. Running sessions come from the registry. Choosing an entry opens a tab (or runs inline with `h`) with `claude --resume <id>`.
+
+## Resuming the same conversation
+
+Plain `--resume <id>` continues the original session under the same ID; only the opt-in `--fork-session` creates a new one, and this tool never uses it. What can go wrong is the folder: a transcript lives at `projects\<key>\<id>.jsonl`, where `<key>` is the working directory with every non-alphanumeric character replaced by `-`, and `claude` only finds it when started from a folder with that key.
+
+So both the dispatcher and `resume.ps1` call the helpers in `common.ps1` before launching:
+
+1. `Find-Transcript` locates `<id>.jsonl`, first under the recorded folder's key, then across all projects.
+2. `Resolve-ResumeCwd` collects the folders recorded in the transcript (plus the registry's) and picks one that exists and whose key matches the transcript's project directory.
+3. If either step fails, nothing is launched: the dispatcher explains, `resume.ps1` logs a `skipped` line.
 
 ## Design notes
 

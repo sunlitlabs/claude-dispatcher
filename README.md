@@ -64,13 +64,17 @@ Claude dispatcher
 | `r` | refresh |
 | `q` | quit |
 
-Sessions marked `*` are running now. Resuming one asks for confirmation first.
+Sessions marked `*` are running now. Resuming one asks for confirmation first, because a second copy would write to the same history.
+
+Each line shows the conversation's title: the name you gave it with `/rename`, otherwise the one Claude generated, otherwise your first prompt. Throwaway sub-sessions started by other tools (SDK sessions) are hidden.
+
+**Always the same conversation.** Resuming uses the session ID, never a fork, so you continue the original history. Claude can only find a conversation when started from the folder it was created in, so before launching, the dispatcher (and the reboot resume) check that the transcript exists and pick a folder that matches where it is stored. If none does, for example because the folder was deleted or renamed, you get a clear message (or a line in `resume.log`) instead of a tab that says "no conversation found".
 
 ## Remote Control
 
-Every session this tool launches, whether resumed after a reboot or started or resumed from the dispatcher, runs with [Remote Control](https://code.claude.com/docs/en/remote-control) enabled, so you can reach it from claude.ai/code or the Claude mobile app. Each session is named after its folder, which makes it easy to spot in the session list.
+Every session this tool launches, whether resumed after a reboot or started or resumed from the dispatcher, runs with [Remote Control](https://code.claude.com/docs/en/remote-control) enabled, so you can reach it from claude.ai/code or the Claude mobile app. Each session is named after its conversation title (or its folder, when it has no title yet), which makes it easy to spot in the session list.
 
-Resumed sessions run `claude --resume <id> --remote-control "<folder>"`, and new ones run `claude --remote-control "<folder>"`.
+Resumed sessions run `claude --resume <id> --remote-control "<title>"`, and new ones run `claude --remote-control "<folder>"`.
 
 To change this, create `%USERPROFILE%\.claude\session-registry\config.json`:
 
@@ -78,7 +82,7 @@ To change this, create `%USERPROFILE%\.claude\session-registry\config.json`:
 { "claudeArgs": "--remote-control" }
 ```
 
-`claudeArgs` replaces the default arguments added to every `claude` command. `{name}` is replaced by the folder name, and an empty string (`""`) turns Remote Control off. The file survives upgrades, because `install.ps1` never touches it. Sessions you start by hand with a plain `claude` are not affected.
+`claudeArgs` replaces the default arguments added to every `claude` command. `{name}` is replaced by the conversation title or folder name, and an empty string (`""`) turns Remote Control off. The file survives upgrades, because `install.ps1` never touches it. Sessions you start by hand with a plain `claude` are not affected.
 
 ## Uninstall
 

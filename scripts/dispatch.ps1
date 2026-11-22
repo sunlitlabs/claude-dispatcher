@@ -8,9 +8,10 @@ param([int]$Count = 30)
 . (Join-Path $PSScriptRoot 'launch.ps1')
 
 function Get-TranscriptInfo($file) {
-    $cwd = $null; $prompt = $null
+    $cwd = $null; $prompt = $null; $sdk = $false
     foreach ($line in (Get-Content -LiteralPath $file.FullName -TotalCount 80 -ErrorAction SilentlyContinue)) {
         $o = try { $line | ConvertFrom-Json } catch { continue }
+        if ($o.entrypoint -eq 'sdk-cli') { $sdk = $true }   # a sub-session spawned by a tool, not a conversation you'd resume
         if (-not $cwd -and $o.cwd) { $cwd = [string]$o.cwd }
         if (-not $prompt -and $o.type -eq 'user' -and $o.message.role -eq 'user') {
             $c = $o.message.content
@@ -19,7 +20,7 @@ function Get-TranscriptInfo($file) {
         }
         if ($cwd -and $prompt) { break }
     }
-    [pscustomobject]@{ Id = $file.BaseName; Cwd = $cwd; Prompt = $prompt; When = $file.LastWriteTime }
+    [pscustomobject]@{ Id = $file.BaseName; Cwd = $cwd; Prompt = $prompt; Title = (Get-SessionTitle $file); Sdk = $sdk; File = $file; When = $file.LastWriteTime }
 }
 
 function Get-Age([datetime]$t) {
@@ -34,14 +35,14 @@ function Show-Menu {
     foreach ($e in Get-Entries) { if (Test-EntryAlive $e) { $running[$e.session_id] = $true } }
     $files = Get-ChildItem (Join-Path $env:USERPROFILE '.claude\projects\*\*.jsonl') -ErrorAction SilentlyContinue |
         Sort-Object LastWriteTime -Descending | Select-Object -First $Count
-    $list = @($files | ForEach-Object { Get-TranscriptInfo $_ } | Where-Object { $_.Cwd })
+    $list = @($files | ForEach-Object { Get-TranscriptInfo $_ } | Where-Object { $_.Cwd -and -not $_.Sdk })
     Clear-Host
     Write-Host 'Claude dispatcher' -ForegroundColor Cyan
     Write-Host '  [number] resume in tab   [number]h resume here   n new   r refresh   q quit' -ForegroundColor DarkGray
     Write-Host ''
     for ($i = 0; $i -lt $list.Count; $i++) {
         $it = $list[$i]; $on = $running.ContainsKey($it.Id)
-        $p = if ($it.Prompt) { $it.Prompt } else { '(no prompt)' }
+        $p = if ($it.Title) { $it.Title } elseif ($it.Prompt) { $it.Prompt } else { '(no title)' }
         if ($p.Length -gt 60) { $p = $p.Substring(0, 57) + '...' }
         $mark = if ($on) { '*' } else { ' ' }
         $line = '{0,3}{1} {2,4}  {3,-22} {4}' -f ($i + 1), $mark, (Get-Age $it.When), (Split-Path $it.Cwd -Leaf), $p
@@ -82,10 +83,17 @@ while ($true) {
 
     if ($in -match '^\d+$' -and [int]$in -ge 1 -and [int]$in -le $list.Count) {
         $it = $list[[int]$in - 1]
-        if (-not (Test-Path -LiteralPath $it.Cwd -PathType Container)) { Write-Host "Folder no longer exists: $($it.Cwd)" -ForegroundColor Red; continue }
+        # Resume the SAME conversation: start in the folder whose project key matches the transcript's location,
+        # otherwise `claude --resume` would not find it (or would be looking at a different project's history).
+        $cwd = Resolve-ResumeCwd $it.File $it.Cwd
+        if (-not $cwd) {
+            Write-Host "Can't resume: no existing folder matches where this conversation is stored ($($it.File.Directory.Name))." -ForegroundColor Red
+            Write-Host "  Recreate or restore the original folder (it was '$($it.Cwd)'), then try again." -ForegroundColor DarkGray
+            continue
+        }
         $live = Get-Entries | Where-Object { $_.session_id -eq $it.Id -and (Test-EntryAlive $_) }
-        if ($live -and (Read-Host 'That session is already running. Open it again anyway? (y/N)') -ne 'y') { continue }
-        Start-Spec (New-ResumeSpec $it.Id $it.Cwd) $here
+        if ($live -and (Read-Host 'That conversation is open in another window. A second copy would write to the same history. Open anyway? (y/N)') -ne 'y') { continue }
+        Start-Spec (New-ResumeSpec $it.Id $cwd $it.Title) $here
         $list = Show-Menu; continue
     }
     Write-Host 'Unrecognised input.' -ForegroundColor Red

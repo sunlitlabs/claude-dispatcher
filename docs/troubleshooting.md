@@ -50,7 +50,7 @@ It was closed within a few minutes of the reboot, so its last heartbeat was insi
 
 ## Tabs opened but a session said "no conversation found"
 
-`claude --resume` looks up the transcript by the folder it is run from. The tab starts in the folder recorded at session start; if you moved or renamed the folder, resume from the new location by hand.
+`claude --resume` looks up the transcript by the folder it is run from. The dispatcher and the reboot resume check this up front and refuse to open a tab that cannot work: the dispatcher says why, and `resume.log` records a `skipped <id>: transcript or matching folder not found` line. The usual cause is a moved, renamed or deleted project folder. Restore the folder at its original path and try again.
 
 ## The first Windows Terminal window is not where I expect
 

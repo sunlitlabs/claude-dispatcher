@@ -23,13 +23,23 @@ if ($lastHb) {
     $cutoff = $lastHb.AddMinutes(-$ToleranceMinutes)
     $resume = @($entries | Where-Object {
         [DateTime]::Parse($_.last_active).ToUniversalTime() -ge $cutoff -and
-        -not (Test-EntryAlive $_) -and $_.cwd -and (Test-Path -LiteralPath $_.cwd)
+        -not (Test-EntryAlive $_)
     } | Sort-Object last_active -Descending | Select-Object -First $MaxTabs)
 }
-Log "boot=$($boot.ToString('o')) lastHeartbeat=$lastHb entries=$($entries.Count) resuming=$($resume.Count) dryrun=$DryRun"
+
+# Only resume what `claude --resume <id>` will actually find: the transcript must exist, and we must start in a
+# folder whose project key matches where it is stored. Anything else would open a "no conversation found" tab.
+$plan = @()
+foreach ($e in $resume) {
+    $f   = Find-Transcript $e.session_id $e.cwd
+    $cwd = if ($f) { Resolve-ResumeCwd $f $e.cwd } else { $null }
+    if (-not $cwd) { Log "skipped $($e.session_id): transcript or matching folder not found (cwd=$($e.cwd))"; continue }
+    $plan += [pscustomobject]@{ Id = $e.session_id; Cwd = $cwd; Title = (Get-SessionTitle $f); Last = $e.last_active }
+}
+Log "boot=$($boot.ToString('o')) lastHeartbeat=$lastHb entries=$($entries.Count) selected=$($resume.Count) resuming=$($plan.Count) dryrun=$DryRun"
 
 if ($DryRun) {
-    $resume | ForEach-Object { "{0}  {1}  {2}" -f $_.session_id, $_.last_active, $_.cwd }
+    $plan | ForEach-Object { "{0}  {1}  {2}  {3}" -f $_.Id, $_.Last, $_.Cwd, $_.Title }
     exit 0
 }
 
@@ -38,6 +48,6 @@ Set-Content -LiteralPath $marker -Value $boot.ToString('o')
 foreach ($e in $entries) { Remove-Item -LiteralPath (Join-Path $script:Dir "$($e.session_id).json") -Force -ErrorAction SilentlyContinue }
 
 if ($Delay -gt 0) { Start-Sleep -Seconds $Delay }
-$specs = $resume | ForEach-Object { New-ResumeSpec $_.session_id $_.cwd }
+$specs = $plan | ForEach-Object { New-ResumeSpec $_.Id $_.Cwd $_.Title }
 Open-ClaudeTabs $specs -WithDispatcher
-Log "launched dispatcher + $($resume.Count) session tab(s)"
+Log "launched dispatcher + $($plan.Count) session tab(s)"
