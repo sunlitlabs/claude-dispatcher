@@ -1,0 +1,7 @@
+# Runtime state if someone points the repo at the install folder
+sessions/
+heartbeat.txt
+last-resume-boot.txt
+*.log
+*.tmp
+*.bak*
